@@ -13,6 +13,8 @@ begin
 	using Plots
 	using Distributions
 	using LaTeXStrings
+	using FastGaussQuadrature
+	using LinearAlgebra
 	import Random
 	
 	Random.seed!(1234)
@@ -20,7 +22,7 @@ end
 
 # ╔═╡ 0cff7565-7618-40dc-b92b-adef642436df
 md"""
-# A Note of Numerical Integration with Normal Distribution
+# Numerical Integration with Normal Distribution
 #### Kazuharu Yanagimoto
  $(import Dates; Dates.format(Dates.today(), Dates.DateFormat("U d, Y")))
 """
@@ -145,16 +147,54 @@ let
 	p
 end
 
+# ╔═╡ ffae240e-975d-4e45-99a2-6ec4bcba6c1b
+md"""
+## Gauss-Hermite Integration
+
+Since the pdf of normal distribution satisfies [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature) form, we can use Gaussian quadrature approximation.
+
+$$\begin{aligned}
+\int_{-\infty}^{\infty} h(x) \phi(x) \,dx &= \int_{-\infty}^{\infty} h(x) \frac{1}{\sqrt{2\pi}} \exp\left(-\frac{x^2}{2}\right) \,dx\\
+&=\int_{-\infty}^{\infty} \underbrace{\frac{1}{\sqrt{\pi}}h(\sqrt{2}z)}_{l(z)} \exp(-z^2) \,dz
+\end{aligned}$$
+"""
+
+# ╔═╡ ab3fb591-fe0a-47d2-b722-9c52a394c928
+function gaussh(f; n_gh = 3)
+	x, w = gausshermite(n_gh)
+	return dot(w, f.(x))
+end
+
+# ╔═╡ 527e2d87-6f83-47a5-80db-afb10b276f8a
+l(z, k) = (sqrt(2) * z)^k / sqrt(π)
+
+# ╔═╡ 6dff4cd4-131a-4487-aa15-0b7ff8fb4a1c
+md"""
+For $k = 3, 5$, Gauss-Hermite approximation returns the exact same number as the solution. 
+"""
+
+# ╔═╡ 11edd31e-a106-45af-9061-8e7dca648ad3
+let
+	sol = [1., 0.,  1.,  0., 3., 0]
+	err_log(k) = log10(abs(gaussh(z -> l(z, k)) - sol[k+1]))
+	scatter(0:2:5, err_log, label = L"k: even",
+		xlabel = L"k", title = L"\log_{10} |Trapezoid(X^k) - \mathbb{E}[X^k]|")
+	scatter!(1:2:5, err_log, label = L"k: odd")
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [compat]
 Distributions = "~0.25.97"
+FastGaussQuadrature = "~0.5.1"
 LaTeXStrings = "~1.3.0"
 Plots = "~1.38.16"
 """
@@ -163,9 +203,9 @@ Plots = "~1.38.16"
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.1"
+julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "5702967325ccf7eda6a703ef587c4f4f8d6067f7"
+project_hash = "fed180c2131aa9ad9a7d3c6d7bc96039fa11e6cd"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -243,7 +283,7 @@ weakdeps = ["Dates", "LinearAlgebra"]
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
-version = "1.0.2+0"
+version = "1.0.5+0"
 
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
@@ -345,6 +385,12 @@ deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers",
 git-tree-sha1 = "74faea50c1d007c85837327f6775bea60b5492dd"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
 version = "4.4.2+2"
+
+[[deps.FastGaussQuadrature]]
+deps = ["LinearAlgebra", "SpecialFunctions", "StaticArrays"]
+git-tree-sha1 = "0f478d8bad6f52573fb7658a263af61f3d96e43a"
+uuid = "442a2c76-b920-505d-bb47-c5924d526838"
+version = "0.5.1"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -744,7 +790,7 @@ version = "0.42.2+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
-version = "1.9.0"
+version = "1.9.2"
 
 [[deps.PlotThemes]]
 deps = ["PlotUtils", "Statistics"]
@@ -903,6 +949,21 @@ version = "2.3.0"
 
     [deps.SpecialFunctions.weakdeps]
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+
+[[deps.StaticArrays]]
+deps = ["LinearAlgebra", "Random", "StaticArraysCore"]
+git-tree-sha1 = "0da7e6b70d1bb40b1ace3b576da9ea2992f76318"
+uuid = "90137ffa-7385-5640-81b9-e52037218182"
+version = "1.6.0"
+weakdeps = ["Statistics"]
+
+    [deps.StaticArrays.extensions]
+    StaticArraysStatisticsExt = "Statistics"
+
+[[deps.StaticArraysCore]]
+git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
+uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+version = "1.4.0"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -1244,7 +1305,7 @@ version = "1.4.1+0"
 
 # ╔═╡ Cell order:
 # ╟─0cff7565-7618-40dc-b92b-adef642436df
-# ╠═be55c5a6-1b3d-11ee-1c09-c191434869ac
+# ╟─be55c5a6-1b3d-11ee-1c09-c191434869ac
 # ╟─75f2cb21-a53b-48ed-bae7-d2dae1b8234a
 # ╠═32fecc29-e778-4a83-aacf-74f90bed64e5
 # ╟─f644744a-edca-4c1a-8cb2-f2a30b5043ab
@@ -1255,8 +1316,13 @@ version = "1.4.1+0"
 # ╟─500bd31d-eff7-4148-81ef-5498927f7e59
 # ╟─607251ce-3f1b-45f3-bd85-19101df93982
 # ╠═2e12c0d2-528f-427c-943d-965ee84e1f70
-# ╟─588d131e-5801-4b91-80b2-e9a6a6f6a22a
+# ╠═588d131e-5801-4b91-80b2-e9a6a6f6a22a
 # ╟─07692cd7-9e67-464c-bb3b-af5434e89e33
 # ╟─278c73f8-606a-4ffa-baf5-eb7299e39738
+# ╟─ffae240e-975d-4e45-99a2-6ec4bcba6c1b
+# ╠═ab3fb591-fe0a-47d2-b722-9c52a394c928
+# ╠═527e2d87-6f83-47a5-80db-afb10b276f8a
+# ╟─6dff4cd4-131a-4487-aa15-0b7ff8fb4a1c
+# ╟─11edd31e-a106-45af-9061-8e7dca648ad3
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
