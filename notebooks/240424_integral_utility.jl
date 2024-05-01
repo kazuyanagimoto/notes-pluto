@@ -16,6 +16,9 @@ begin
 	Random.seed!(1234)
 end
 
+# ╔═╡ ed8753c6-8970-41c3-8db9-41f93eac5df6
+using SpecialFunctions
+
 # ╔═╡ cf2212b7-2dec-42d8-8bb1-d7c0e55c1555
 md"""
 # Numerical Integration of Expected Utility
@@ -192,7 +195,7 @@ md"""
 """
 
 # ╔═╡ 1142ba53-d8ec-47c5-ab9c-dd44955908d8
-begin
+let
 	U_mc(; m = m₂, n = 10^6) = mean(v(rand(LogNormal(m.μ_w, m.σ_w)),
                                       rand(LogNormal(m.μ_ξ, m.σ_ξ))) for _ in 1:n)
 	U_mc()
@@ -214,9 +217,11 @@ U &= \int_{0}^{\infty}\int_{0}^{\infty} v(w, \xi) \,dF(w)dG(\xi) \\
 where $z_i = \mu_w + \sqrt{2} \sigma_w x_i$ and $z_j = \mu_\xi + \sqrt{2} \sigma_\xi x_j$.
 """
 
+# ╔═╡ dbdba7f3-fda1-4b80-b6a3-9da910efef28
+x_gh, w_gh = gausshermite(3)
+
 # ╔═╡ 4c036469-7cd0-4e25-80c7-a3165cdf6b34
-begin
-	x_gh, w_gh = gausshermite(3)
+let
 	function U_gaussh(; m = m₂, x = x_gh, w = w_gh)
 	    (; μ_w, σ_w, μ_ξ, σ_ξ) = m
 	
@@ -224,6 +229,94 @@ begin
 	    for (x₁, w₁) ∈ zip(x, w), (x₂, w₂) ∈ zip(x, w)
 	      res += w₁ * w₂ * v(exp(μ_w + sqrt(2) * σ_w * x₁),
 	                         exp(μ_ξ + sqrt(2) * σ_ξ * x₂)) / π
+	    end
+	
+	    res
+	end
+
+	U_gaussh()
+end
+
+# ╔═╡ 4b1c0d3e-cc7e-4be9-8c1d-1cae21b26100
+md"""
+## Beta Distribution
+
+```math
+v(w, \theta) = \max_{c, l} \left((1 - \theta)c^\kappa + \theta l^\kappa\right)^{\frac{1}{\kappa}}
+\quad \text{s.t. } c = w(1 - l).
+```
+
+Given a wage drawn from log-normal distribution and $\theta$ drawn from beta distribution,
+
+```math
+w \sim \log\text{-}\mathcal{N}(\mu_w, \sigma_w^2), \quad
+\theta \sim Beta(\alpha, \beta)
+```
+
+compute the expected utility of the agent,
+
+```math
+U = \int_{0}^{1}\int_{0}^{\infty} v(w, \theta) \,dF(w)dB(\theta).
+```
+
+"""
+
+# ╔═╡ 800b4c31-45e3-4ff9-b2a9-aed2bc9fa39d
+function v_beta(w, θ; κ = -0.5)
+	C₁ = (θ / ((1 - θ) * w))^(1/(κ-1))
+	l = w / (w + C₁)
+	c = C₁ * l
+
+	return ((1-θ) * c^κ + θ * l^κ)^(1/κ)
+end
+
+# ╔═╡ 8d963759-1eae-472e-9528-17e317b90424
+m₃ = (μ_w = 0.0, σ_w = 0.2, α = 2., β = 5.)
+
+# ╔═╡ 7a6edfcc-a752-4c0b-a40c-cc3772469d41
+plot(θ -> pdf(Beta(m₃.α, m₃.β), θ), 0., 1., xlabel = L"$\theta$", label = false)
+
+# ╔═╡ 1fff179e-e22b-48c9-a49d-de4af4ac3535
+md"""
+### Monte-Carlo Simulation
+"""
+
+# ╔═╡ 7ddda391-d796-417a-b481-c89c43fcaa84
+let
+	U_mc(; m = m₃, n = 10^6) = mean(v_beta(rand(LogNormal(m.μ_w, m.σ_w)),
+                                      rand(Beta(m.α, m.β))) for _ in 1:n)
+	U_mc()
+end
+
+# ╔═╡ aa0106df-922a-4bce-82c1-6a4441b08289
+md"""
+### Gauss-Jacobi Intergration
+
+Let $f(\theta) = \frac{\theta^{\alpha-1}(1-\theta)^{\beta-1}}{B(\alpha, \beta)}$ and consider the Gauss-Jacobi quadrature.
+
+```math
+\begin{aligned}
+\int_{0}^1 v(\theta)dF(\theta) &= \int_{0}^1 v(\theta) \frac{\theta^{\alpha-1}(1-\theta)^{\beta-1}}{B(\alpha, \beta)}\,d\theta \\
+&= \int_{-1}^1 \frac{v\left(\frac{z+1}{2}\right)}{2^{a + b + 1}B(b+1, a+1)}
+(1-z)^{a}(1+z)^{b} \,dz
+\end{aligned}
+```
+
+where $z = 2\theta-1$, $a = \beta - 1$, and $b = \alpha - 1$.
+
+"""
+
+# ╔═╡ 2a90df5b-9a69-4c49-ab0d-851d97352a0f
+x_gj, w_gj = gaussjacobi(3, m₃.β-1, m₃.α-1)
+
+# ╔═╡ be069efe-9865-44b9-ab7b-8bf299d355c8
+let
+	function U_gaussh(; m = m₃, x_gh = x_gh, w_gh = w_gh, x_gj = x_gj, w_gj = w_gj)
+	    (; μ_w, σ_w, α, β) = m₃
+	
+	    res = 0
+	    for (x₁, w₁) ∈ zip(x_gh, w_gh), (x₂, w₂) ∈ zip(x_gj, w_gj)
+	      	res += w₁ * w₂ * v_beta(exp(μ_w + sqrt(2) * σ_w * x₁), (x₂ + 1) / 2) / (sqrt(π) * 2^(α + β - 1) * beta(α, β))
 	    end
 	
 	    res
@@ -241,6 +334,7 @@ LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
 Distributions = "~0.25.108"
@@ -248,15 +342,16 @@ FastGaussQuadrature = "~1.0.2"
 LaTeXStrings = "~1.3.1"
 Plots = "~1.40.4"
 Roots = "~2.1.5"
+SpecialFunctions = "~2.3.1"
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
 PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.1"
+julia_version = "1.10.2"
 manifest_format = "2.0"
-project_hash = "4d740c755bb3185231fd443091b593c9dff9651e"
+project_hash = "4d9e31f6c0e99a2bb991856205ea715f32307368"
 
 [[deps.Accessors]]
 deps = ["CompositionsBase", "ConstructionBase", "Dates", "InverseFunctions", "LinearAlgebra", "MacroTools", "Markdown", "Test"]
@@ -1533,6 +1628,17 @@ version = "1.4.1+1"
 # ╟─2477f03e-4f96-42db-b43a-2589fa6e7060
 # ╠═1142ba53-d8ec-47c5-ab9c-dd44955908d8
 # ╟─4704ecf6-e71e-42b5-9ae7-c93e255d0f24
+# ╠═dbdba7f3-fda1-4b80-b6a3-9da910efef28
 # ╠═4c036469-7cd0-4e25-80c7-a3165cdf6b34
+# ╟─4b1c0d3e-cc7e-4be9-8c1d-1cae21b26100
+# ╠═800b4c31-45e3-4ff9-b2a9-aed2bc9fa39d
+# ╠═8d963759-1eae-472e-9528-17e317b90424
+# ╟─7a6edfcc-a752-4c0b-a40c-cc3772469d41
+# ╟─1fff179e-e22b-48c9-a49d-de4af4ac3535
+# ╠═7ddda391-d796-417a-b481-c89c43fcaa84
+# ╟─aa0106df-922a-4bce-82c1-6a4441b08289
+# ╠═ed8753c6-8970-41c3-8db9-41f93eac5df6
+# ╠═2a90df5b-9a69-4c49-ab0d-851d97352a0f
+# ╠═be069efe-9865-44b9-ab7b-8bf299d355c8
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
